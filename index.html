@@ -8,43 +8,61 @@
   </head>
   <body>
     <header class="app-header">
-      <h1>Flashcards</h1>
-      <nav class="header-actions" role="toolbar" aria-label="Header actions">
+      <div class="branding">
+        <h1>Flashcards</h1>
+      </div>
+      <nav class="header-actions" aria-label="Header actions">
         <button id="new-deck-btn" class="btn">New Deck</button>
       </nav>
     </header>
 
     <main class="app-body">
-      <aside class="sidebar" aria-label="Decks">
+      <nav class="sidebar" aria-label="Decks">
         <h2>Decks</h2>
         <ul id="deck-list">
-          <li class="deck-item">Sample Deck</li>
+          <li class="deck-item active" tabindex="0" aria-current="true">
+            Sample Deck
+          </li>
+          <li class="deck-item" tabindex="0">Spanish Basics</li>
+          <li class="deck-item" tabindex="0">Math Facts</li>
         </ul>
-      </aside>
+      </nav>
 
       <section class="main" id="main-content">
+        <header class="deck-header">
+          <h2 id="deck-title">Sample Deck</h2>
+          <div class="toolbar" role="toolbar" aria-label="Deck toolbar">
+            <label class="sr-only" for="search">Search cards</label>
+            <input id="search" type="search" placeholder="Search cards" />
+            <button id="shuffle-btn" class="btn">Shuffle</button>
+            <button id="new-card-btn" class="btn">New Card</button>
+            <button id="edit-deck-btn" class="btn">Edit Deck</button>
+            <button id="delete-deck-btn" class="btn">Delete Deck</button>
+          </div>
+        </header>
+
         <section class="card-area" aria-live="polite">
           <article id="card" class="card" aria-label="Flashcard">
-            <header class="card-front">Question</header>
-            <div class="card-back hidden">Answer</div>
+            <div id="card-front" class="card-front">Question</div>
+            <div id="card-back" class="card-back hidden">Answer</div>
           </article>
 
           <nav class="card-controls" aria-label="Card controls">
-            <button id="prev-btn">Prev</button>
-            <button id="flip-btn">Flip</button>
-            <button id="next-btn">Next</button>
+            <button id="prev-btn" class="btn">Prev</button>
+            <button id="flip-btn" class="btn">Flip</button>
+            <button id="next-btn" class="btn">Next</button>
+            <button id="edit-card-btn" class="btn">Edit Card</button>
+            <button id="delete-card-btn" class="btn">Delete Card</button>
           </nav>
         </section>
-
-        <nav class="deck-controls" aria-label="Deck controls">
-          <button id="add-card-btn">Add Card</button>
-          <button id="study-btn">Study</button>
-        </nav>
       </section>
     </main>
 
     <footer class="app-footer">
-      <small>© Flashcards App</small>
+      <small
+        >Tip: Use <kbd>←</kbd>/<kbd>→</kbd> to navigate, <kbd>Space</kbd> to
+        flip.</small
+      >
     </footer>
 
     <script src="./app.js"></script>
