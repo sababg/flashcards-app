@@ -1,3 +1,37 @@
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #0a0f1e;
+        --card: #111827;
+        --accent: #8b5cf6;
+        --muted: #9ca3af;
+        --text: #f3f4f6;
+        --card-secondary: #1f2937; /* ADDED */
+        --text-secondary: #9ca3af; /* ADDED */
+        --radius: 0.75rem;
+        --gap: 1rem;
+        --max-width: 1100px;
+    }
+
+    body {
+        background: var(--bg);
+        color: var(--text);
+    }
+
+    .sidebar,
+    .card {
+        background: var(--card);
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+    }
+
+    .deck-item:hover {
+        background: rgba(139, 92, 246, 0.12);
+    }
+
+    .empty-state:not([hidden]) {
+        background: var(--card-secondary);
+    }
+}
+
 :root {
     --bg: #f3f4f6;
     --card: #ffffff;
@@ -98,13 +132,13 @@ body {
 /* Toolbar layout in header of main content */
 .deck-header {
     display: flex;
-    align-items: center;
+    align-items: baseline;
     justify-content: space-between;
     gap: 12px;
 }
 .toolbar {
     display: flex;
-    align-items: center;
+    align-items: baseline;
     gap: 8px;
 }
 .toolbar input[type="search"] {
@@ -154,14 +188,20 @@ body {
 .card-front {
     transform: rotateY(0deg);
 }
+.card-back {
+    transform: rotateY(180deg);
+    display: none;
+}
 
 .card.is-flipped .card-front {
     transform: rotateY(180deg);
     opacity: 0;
+    display: none;
 }
 .card.is-flipped .card-back {
     transform: rotateY(0deg);
     opacity: 1;
+    display: inline;
 }
 
 .card .meta {
@@ -235,6 +275,16 @@ button[disabled] {
     .app-header h1 {
         font-size: 1rem;
     }
+    .btn,
+    button {
+        font-size: 0.6rem;
+        padding: 0.5rem;
+    }
+}
+
+/* Study indicator when active */
+body.studying .app-header {
+    box-shadow: inset 0 -2px 0 rgba(79, 70, 229, 0.12);
 }
 
 /* Utility helpers */
@@ -293,4 +343,61 @@ a:focus-visible {
     .deck-item:hover {
         background: rgba(124, 58, 237, 0.08);
     }
+}
+
+.search-wrapper {
+    position: relative;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.search-count {
+    font-size: 0.875rem;
+    color: var(--text-secondary, #64748b);
+    white-space: nowrap;
+}
+
+#search {
+    padding: 0.5rem;
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 6px;
+    font-size: 0.875rem;
+}
+
+#search:focus {
+    outline: 2px solid var(--primary, #3b82f6);
+    outline-offset: 1px;
+}
+[hidden] {
+    display: none !important;
+}
+
+.empty-state:not([hidden]) {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 3rem;
+    background: var(--card-secondary, #f1f5f9);
+    border-radius: 12px;
+    text-align: center;
+    min-height: 300px;
+}
+
+.empty-state p {
+    color: #cfcfcf;
+    font-size: 1.125rem;
+    margin: 0;
+}
+
+.empty-state .icon {
+    opacity: 0.9;
+    color: var(--muted);
+}
+
+.empty-state .btn {
+    margin-top: 6px;
 }

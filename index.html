@@ -26,14 +26,45 @@
           <li class="deck-item" tabindex="0">Spanish Basics</li>
           <li class="deck-item" tabindex="0">Math Facts</li>
         </ul>
+        <div
+          id="empty-decks"
+          class="empty-state"
+          role="status"
+          aria-live="polite"
+          hidden
+        >
+          <svg
+            class="icon"
+            width="56"
+            height="56"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path
+              fill="currentColor"
+              d="M3 13h2v-2H3v2zm4 0h2v-2H7v2zm4 0h6v-2h-6v2zM3 17h2v-2H3v2zm4 0h2v-2H7v2zM3 9h2V7H3v2zm4 0h10V7H7v2z"
+            />
+          </svg>
+          <p>No decks yet. Create a deck to get started.</p>
+          <button id="new-deck-empty" class="btn">Create Deck</button>
+        </div>
       </nav>
 
       <section class="main" id="main-content">
         <header class="deck-header">
           <h2 id="deck-title">Sample Deck</h2>
           <div class="toolbar" role="toolbar" aria-label="Deck toolbar">
-            <label class="sr-only" for="search">Search cards</label>
-            <input id="search" type="search" placeholder="Search cards" />
+            <div class="search-wrapper">
+              <label class="sr-only" for="search">Search cards</label>
+              <input id="search" type="search" placeholder="Search cards" />
+              <span
+                id="search-count"
+                aria-live="polite"
+                class="search-count"
+                title="Search matches"
+              ></span>
+            </div>
             <button id="shuffle-btn" class="btn">Shuffle</button>
             <button id="new-card-btn" class="btn">New Card</button>
             <button id="edit-deck-btn" class="btn">Edit Deck</button>
@@ -42,6 +73,15 @@
         </header>
 
         <section class="card-area" aria-live="polite">
+          <!-- Empty state for no cards (should be hidden when cards exist) -->
+          <div id="empty-cards" class="empty-state" hidden>
+            <p>This deck has no cards. Add a new card to begin studying.</p>
+            <button id="new-card-empty" class="btn btn-primary">
+              Add Card
+            </button>
+          </div>
+
+          <!-- The actual card (should be visible when cards exist) -->
           <article id="card" class="card" aria-label="Flashcard">
             <div id="card-front" class="card-front">Question</div>
             <div id="card-back" class="card-back hidden">Answer</div>
@@ -65,6 +105,7 @@
       >
     </footer>
 
+    <script src="./storage.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>

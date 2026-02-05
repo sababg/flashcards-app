@@ -19,9 +19,9 @@ class Modal {
     this.container.setAttribute("aria-modal", "true");
     this.container.setAttribute("aria-hidden", "true");
     this.container.innerHTML = `
-			<div class="modal" role="document">
+			<div class="modal" role="dialog" aria-labelledby="modal-title">
 				<header class="modal-header">
-					<h3 class="modal-title">${this.title}</h3>
+					<h3 id="modal-title" class="modal-title">${this.title}</h3>
 					<button class="modal-close" aria-label="Close dialog">✕</button>
 				</header>
 				<div class="modal-body"></div>
@@ -37,7 +37,6 @@ class Modal {
       this._body.appendChild(this.content);
     }
 
-    // Append but keep hidden until open()
     document.body.appendChild(this.container);
     this._focusableSelector = [
       "a[href]",
@@ -56,12 +55,13 @@ class Modal {
 
   open() {
     this._previouslyFocused = document.activeElement;
+    document.querySelector("main")?.setAttribute("aria-hidden", "true");
+    document.querySelector("nav")?.setAttribute("aria-hidden", "true");
     this.container.setAttribute("aria-hidden", "false");
     this.container.classList.add("open");
     document.body.classList.add("modal-open");
     document.addEventListener("keydown", this._onKeyDown);
     document.addEventListener("focus", this._onFocus, true);
-    // focus first focusable element or close button
     const focusables = this._getFocusable();
     (focusables[0] || this._closeBtn).focus();
   }
@@ -75,9 +75,10 @@ class Modal {
     if (this._previouslyFocused && this._previouslyFocused.focus) {
       this._previouslyFocused.focus();
     }
+    document.querySelector("main")?.removeAttribute("aria-hidden");
+    document.querySelector("nav")?.removeAttribute("aria-hidden");
   }
 
-  // NEW: Proper cleanup method
   destroy() {
     this.close();
     if (this.container && this.container.parentNode) {
@@ -123,7 +124,6 @@ class Modal {
 
   _onFocus(e) {
     if (!this.container.contains(e.target)) {
-      // redirect focus back into modal
       const focusables = this._getFocusable();
       (focusables[0] || this._closeBtn).focus();
       e.stopPropagation();
@@ -140,20 +140,18 @@ document.addEventListener("DOMContentLoaded", () => {
   const deckTitleEl = document.getElementById("deck-title");
   const editDeckBtn = document.getElementById("edit-deck-btn");
   const deleteDeckBtn = document.getElementById("delete-deck-btn");
-  const cardCountEl = document.getElementById("card-count");
 
   const formHtml = `
     <form id="new-deck-form">
       <label for="deck-name">Deck name</label>
-      <input id="deck-name" autofocus name="name" type="text" required />
+      <input id="deck-name" autofocus name="name" type="text" required minlength="1" maxlength="100" />
       <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
         <button type="button" class="btn" id="cancel-deck">Cancel</button>
-        <button type="submit" class="btn">Create</button>
+        <button type="submit" class="btn btn-primary">Create</button>
       </div>
     </form>`;
 
-  // FIXED: Cards now have unique IDs
-  const decks = [
+  let decks = [
     {
       id: "d1",
       title: "Sample Deck",
@@ -163,6 +161,32 @@ document.addEventListener("DOMContentLoaded", () => {
     { id: "d3", title: "Math Facts", cards: [] },
   ];
   let activeDeckId = decks[0].id;
+
+  function persist() {
+    try {
+      if (window.storage && typeof window.storage.saveState === "function") {
+        window.storage.saveState(
+          "state",
+          { decks: decks, activeDeckId: activeDeckId },
+          1,
+        );
+      }
+    } catch (err) {
+      console.error("Persist error:", err);
+    }
+  }
+
+  try {
+    if (window.storage && typeof window.storage.loadState === "function") {
+      const saved = window.storage.loadState("state", 1);
+      if (saved && Array.isArray(saved.decks) && saved.decks.length > 0) {
+        decks = saved.decks;
+        activeDeckId = saved.activeDeckId || decks[0].id;
+      }
+    }
+  } catch (err) {
+    console.error("Load state error:", err);
+  }
 
   function generateId(prefix = "d") {
     return prefix + Date.now() + Math.random().toString(36).slice(2, 9);
@@ -174,11 +198,27 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function renderDeckList() {
     deckListEl.innerHTML = "";
+    const emptyDecksEl = document.getElementById("empty-decks");
+
+    if (decks.length === 0) {
+      if (emptyDecksEl) {
+        emptyDecksEl.hidden = false;
+        setTimeout(() => emptyDecksEl.querySelector("button")?.focus(), 0);
+      }
+      deckListEl.setAttribute("aria-hidden", "true");
+      return;
+    }
+
+    if (emptyDecksEl) emptyDecksEl.hidden = true;
+    deckListEl.removeAttribute("aria-hidden");
+
     decks.forEach((d) => {
       const li = document.createElement("li");
       li.className = "deck-item" + (d.id === activeDeckId ? " active" : "");
       li.tabIndex = 0;
       li.dataset.id = d.id;
+      li.setAttribute("role", "button");
+      li.setAttribute("aria-label", `${d.title}, ${d.cards.length} cards`);
       li.textContent = `${d.title} (${d.cards.length})`;
       li.addEventListener("click", () => setActiveDeck(d.id));
       li.addEventListener("keydown", (e) => {
@@ -198,6 +238,7 @@ document.addEventListener("DOMContentLoaded", () => {
       deckTitleEl.textContent = deck.title;
       renderDeckList();
       renderCard(deck);
+      persist();
     }
   }
 
@@ -206,6 +247,7 @@ document.addEventListener("DOMContentLoaded", () => {
     decks.push({ id, title, cards: [] });
     renderDeckList();
     setActiveDeck(id);
+    persist();
   }
 
   function updateDeck(id, newTitle) {
@@ -214,120 +256,69 @@ document.addEventListener("DOMContentLoaded", () => {
     d.title = newTitle;
     renderDeckList();
     if (id === activeDeckId) deckTitleEl.textContent = newTitle;
+    persist();
   }
 
   function deleteDeck(id) {
     const idx = decks.findIndex((d) => d.id === id);
     if (idx === -1) return;
     decks.splice(idx, 1);
+
     if (decks.length === 0) {
       deckTitleEl.textContent = "No Decks";
-      deckListEl.innerHTML = "";
       activeDeckId = null;
+      renderDeckList();
       renderCard(null);
+      persist();
       return;
     }
+
     activeDeckId = decks[Math.max(0, idx - 1)].id;
     renderDeckList();
     setActiveDeck(activeDeckId);
+    persist();
   }
 
   function renderCard(deck) {
-    const cardFront = document.querySelector(".card-front");
-    const cardBack = document.querySelector(".card-back");
+    const cardFront = document.querySelector("#card-front");
+    const cardBack = document.querySelector("#card-back");
     const cardEl = document.getElementById("card");
+    const emptyCardsEl = document.getElementById("empty-cards");
 
-    if (!deck || deck.cards.length === 0) {
-      if (cardFront) cardFront.textContent = "No cards in this deck.";
+    if (!deck) {
+      if (emptyCardsEl) emptyCardsEl.hidden = true;
+      if (cardFront) cardFront.textContent = "";
       if (cardBack) cardBack.textContent = "";
       if (cardEl) cardEl.classList.remove("is-flipped");
-      if (cardCountEl) cardCountEl.textContent = "0 / 0";
+      cardEl?.setAttribute("aria-hidden", "true");
       return;
     }
 
-    // ensure index exists on deck
+    if (deck.cards.length === 0) {
+      if (emptyCardsEl) {
+        emptyCardsEl.hidden = false;
+        setTimeout(() => emptyCardsEl.querySelector("button")?.focus(), 0);
+      }
+      if (cardFront) cardFront.textContent = "";
+      if (cardBack) cardBack.textContent = "";
+      if (cardEl) cardEl.classList.remove("is-flipped");
+      cardEl?.setAttribute("aria-hidden", "true");
+      return;
+    }
+
+    if (emptyCardsEl) emptyCardsEl.hidden = true;
+    cardEl?.removeAttribute("aria-hidden");
+
     if (typeof deck._index === "undefined") deck._index = 0;
     deck._index = Math.max(0, Math.min(deck._index, deck.cards.length - 1));
     const c = deck.cards[deck._index];
 
     if (cardFront) cardFront.textContent = c.q;
     if (cardBack) cardBack.textContent = c.a;
-    // FIXED: Reset flip state when navigating to new card
     if (cardEl) cardEl.classList.remove("is-flipped");
-    if (cardCountEl)
-      cardCountEl.textContent = `${deck._index + 1} / ${deck.cards.length}`;
   }
 
-  // FIXED: Use single persistent modal, reset content
   let newDeckModal = null;
-
-  // Study session state and helper
-  let studySession = { active: false, handler: null, deckId: null };
-
-  function enterStudyMode(deckId) {
-    const deck = findDeck(deckId);
-    if (!deck) return null;
-    // initialize index and render
-    deck._index = 0;
-    renderCard(deck);
-    studySession.active = true;
-    studySession.deckId = deckId;
-    document.body.classList.add("studying");
-
-    const handler = (e) => {
-      // ignore when modal open or typing
-      const modalOpen = document.body.classList.contains("modal-open");
-      const inputFocused =
-        document.activeElement &&
-        ["INPUT", "TEXTAREA", "SELECT"].includes(
-          document.activeElement.tagName,
-        );
-      if (modalOpen || inputFocused) return;
-
-      if (e.key === "Escape") {
-        e.preventDefault();
-        exitStudyMode();
-        return;
-      }
-      if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        const d = findDeck(studySession.deckId);
-        if (!d || d.cards.length === 0) return;
-        d._index = Math.max(0, (d._index || 0) - 1);
-        renderCard(d);
-      }
-      if (e.key === "ArrowRight") {
-        e.preventDefault();
-        const d = findDeck(studySession.deckId);
-        if (!d || d.cards.length === 0) return;
-        d._index = Math.min(d.cards.length - 1, (d._index || 0) + 1);
-        renderCard(d);
-      }
-      if (e.code === "Space") {
-        e.preventDefault();
-        const cardEl = document.getElementById("card");
-        if (cardEl) cardEl.classList.toggle("is-flipped");
-      }
-    };
-
-    studySession.handler = handler;
-    document.addEventListener("keydown", handler);
-
-    function exitStudyMode() {
-      if (!studySession.active) return;
-      studySession.active = false;
-      if (studySession.handler) {
-        document.removeEventListener("keydown", studySession.handler);
-        studySession.handler = null;
-      }
-      studySession.deckId = null;
-      document.body.classList.remove("studying");
-      const cardEl = document.getElementById("card");
-      if (cardEl) cardEl.classList.remove("is-flipped");
-    }
-
-    return exitStudyMode;
-  }
 
   newDeckBtn.addEventListener("click", () => {
     if (!newDeckModal) {
@@ -336,7 +327,6 @@ document.addEventListener("DOMContentLoaded", () => {
     newDeckModal.open();
   });
 
-  // Use event delegation for modal forms (prevents duplicates)
   document.body.addEventListener("click", (e) => {
     if (e.target && e.target.id === "cancel-deck") {
       e.preventDefault();
@@ -347,47 +337,59 @@ document.addEventListener("DOMContentLoaded", () => {
   document.body.addEventListener("submit", (e) => {
     if (e.target && e.target.id === "new-deck-form") {
       e.preventDefault();
-      const name = e.target.querySelector("#deck-name").value.trim();
-      if (!name) return;
+      const input = e.target.querySelector("#deck-name");
+      const name = input.value.trim();
+
+      if (!name) {
+        input.setCustomValidity("Please enter a deck name");
+        input.reportValidity();
+        return;
+      }
+
+      input.setCustomValidity("");
       createDeck(name);
+
       if (newDeckModal) {
         newDeckModal.close();
-        e.target.reset(); // Clear form
+        e.target.reset();
       }
     }
   });
 
   // initial render
   renderDeckList();
-  setActiveDeck(activeDeckId);
+  if (activeDeckId) setActiveDeck(activeDeckId);
 
-  // wire study button if present
-  const studyBtn = document.getElementById("study-btn");
-  if (studyBtn) {
-    studyBtn.addEventListener("click", () => {
-      if (!activeDeckId) return;
-      enterStudyMode(activeDeckId);
-    });
-  }
+  // Empty-state action wiring
+  const newDeckEmptyBtn = document.getElementById("new-deck-empty");
+  if (newDeckEmptyBtn)
+    newDeckEmptyBtn.addEventListener("click", () => newDeckBtn.click());
+
+  const newCardEmptyBtn = document.getElementById("new-card-empty");
+  if (newCardEmptyBtn)
+    newCardEmptyBtn.addEventListener("click", () =>
+      document.getElementById("new-card-btn")?.click(),
+    );
 
   // FIXED: Edit deck with proper cleanup
   if (editDeckBtn) {
     editDeckBtn.addEventListener("click", () => {
       const deck = findDeck(activeDeckId);
       if (!deck) return;
+
       const editForm = `
         <form id="edit-deck-form">
           <label for="edit-deck-name">Deck name</label>
-          <input id="edit-deck-name" name="name" type="text" value="${escapeHtml(deck.title)}" required autofocus />
+          <input id="edit-deck-name" name="name" type="text" value="${escapeHtml(deck.title)}" required minlength="1" maxlength="100" autofocus />
           <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
             <button type="button" class="btn" id="cancel-edit">Cancel</button>
-            <button type="submit" class="btn">Save</button>
+            <button type="submit" class="btn btn-primary">Save</button>
           </div>
         </form>`;
+
       const editModal = new Modal({ title: "Edit Deck", content: editForm });
       editModal.open();
 
-      // Use named functions so we can properly remove them
       const handleEditClick = (e) => {
         if (e.target && e.target.id === "cancel-edit") {
           cleanup();
@@ -397,10 +399,16 @@ document.addEventListener("DOMContentLoaded", () => {
       const handleEditSubmit = (e) => {
         if (e.target && e.target.id === "edit-deck-form") {
           e.preventDefault();
-          const newName = e.target
-            .querySelector("#edit-deck-name")
-            .value.trim();
-          if (!newName) return;
+          const input = e.target.querySelector("#edit-deck-name");
+          const newName = input.value.trim();
+
+          if (!newName) {
+            input.setCustomValidity("Please enter a deck name");
+            input.reportValidity();
+            return;
+          }
+
+          input.setCustomValidity("");
           updateDeck(deck.id, newName);
           cleanup();
         }
@@ -423,14 +431,16 @@ document.addEventListener("DOMContentLoaded", () => {
     deleteDeckBtn.addEventListener("click", () => {
       const deck = findDeck(activeDeckId);
       if (!deck) return;
+
       const confirmHtml = `
         <div>
           <p>Delete "${escapeHtml(deck.title)}"? This cannot be undone.</p>
           <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
             <button id="cancel-delete" class="btn">Cancel</button>
-            <button id="confirm-delete" class="btn" style="background:var(--danger,#dc2626);color:white;">Delete</button>
+            <button id="confirm-delete" class="btn btn-danger">Delete</button>
           </div>
         </div>`;
+
       const confirmModal = new Modal({
         title: "Delete Deck",
         content: confirmHtml,
@@ -457,8 +467,71 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  /* Card CRUD and controls (delegated) */
-  // FIXED: Cards now have unique IDs
+  // Debounced search
+  const searchInput = document.getElementById("search");
+  const searchCountEl = document.getElementById("search-count");
+
+  function debounce(fn, wait) {
+    let t = null;
+    return function (...args) {
+      clearTimeout(t);
+      t = setTimeout(() => fn.apply(this, args), wait);
+    };
+  }
+
+  function performSearch(query) {
+    const deck = findDeck(activeDeckId);
+    if (!deck) return;
+
+    const q = String(query || "")
+      .trim()
+      .toLowerCase();
+
+    if (!q) {
+      if (searchCountEl) searchCountEl.textContent = "";
+      deck._index = 0;
+      renderCard(deck);
+      return;
+    }
+
+    const matches = deck.cards
+      .map((c, i) => ({ c, i }))
+      .filter(
+        ({ c }) =>
+          String(c.q || "")
+            .toLowerCase()
+            .includes(q) ||
+          String(c.a || "")
+            .toLowerCase()
+            .includes(q),
+      );
+
+    if (searchCountEl) {
+      searchCountEl.textContent = `${matches.length} match${matches.length !== 1 ? "es" : ""}`;
+    }
+
+    if (matches.length > 0) {
+      deck._index = matches[0].i;
+      renderCard(deck);
+    } else {
+      const cardFront = document.querySelector("#card-front");
+      const cardBack = document.querySelector("#card-back");
+      const cardEl = document.getElementById("card");
+      if (cardFront)
+        cardFront.textContent = `No matches for "${escapeHtml(query)}"`;
+      if (cardBack) cardBack.textContent = "";
+      if (cardEl) cardEl.classList.remove("is-flipped");
+    }
+  }
+
+  const debouncedSearch = debounce(performSearch, 300);
+  if (searchInput) {
+    searchInput.addEventListener("input", (e) =>
+      debouncedSearch(e.target.value),
+    );
+  }
+
+  /* Card CRUD */
   function createCard(deckId, q, a) {
     const d = findDeck(deckId);
     if (!d) return;
@@ -467,9 +540,9 @@ document.addEventListener("DOMContentLoaded", () => {
     d._index = d.cards.length - 1;
     if (deckId === activeDeckId) renderCard(d);
     renderDeckList();
+    persist();
   }
 
-  // FIXED: Update by card ID instead of index
   function updateCard(deckId, cardId, q, a) {
     const d = findDeck(deckId);
     if (!d) return;
@@ -478,9 +551,9 @@ document.addEventListener("DOMContentLoaded", () => {
     card.q = q;
     card.a = a;
     if (deckId === activeDeckId) renderCard(d);
+    persist();
   }
 
-  // FIXED: Delete by card ID instead of index
   function deleteCard(deckId, cardId) {
     const d = findDeck(deckId);
     if (!d) return;
@@ -490,9 +563,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (d._index >= d.cards.length) d._index = Math.max(0, d.cards.length - 1);
     if (deckId === activeDeckId) renderCard(d);
     renderDeckList();
+    persist();
   }
 
-  // Delegated click handler for card controls and modals
+  // Delegated click handler for card controls
   document.body.addEventListener("click", (e) => {
     const target = e.target;
     if (!target) return;
@@ -516,40 +590,36 @@ document.addEventListener("DOMContentLoaded", () => {
     // Flip
     if (target.id === "flip-btn") {
       const cardEl = document.getElementById("card");
-      const cardBack = document.getElementById("card-back");
-      const cardFront = document.getElementById("card-front");
-      console.log("first", cardEl.classList);
       if (cardEl) cardEl.classList.toggle("is-flipped");
-      if (cardBack) cardBack.classList.toggle("hidden");
-      if (cardFront) cardFront.classList.toggle("hidden");
     }
 
     // Shuffle
     if (target.id === "shuffle-btn") {
       const deck = findDeck(activeDeckId);
       if (!deck || deck.cards.length === 0) return;
-      // Fisher-Yates shuffle
       for (let i = deck.cards.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [deck.cards[i], deck.cards[j]] = [deck.cards[j], deck.cards[i]];
       }
       deck._index = 0;
       renderCard(deck);
+      persist();
     }
 
-    // New Card -> open modal
+    // New Card
     if (target.id === "new-card-btn") {
       const newCardForm = `
         <form id="new-card-form">
           <label for="new-q">Question</label>
-          <input id="new-q" name="q" type="text" required autofocus />
+          <input id="new-q" name="q" type="text" required minlength="1" maxlength="500" autofocus />
           <label for="new-a" style="margin-top:8px;">Answer</label>
-          <input id="new-a" name="a" type="text" required />
+          <input id="new-a" name="a" type="text" required minlength="1" maxlength="500" />
           <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
             <button type="button" class="btn" id="cancel-new-card">Cancel</button>
-            <button type="submit" class="btn">Create</button>
+            <button type="submit" class="btn btn-primary">Create</button>
           </div>
         </form>`;
+
       const newCardModal = new Modal({
         title: "New Card",
         content: newCardForm,
@@ -565,9 +635,25 @@ document.addEventListener("DOMContentLoaded", () => {
       const handleSubmit = (ev) => {
         if (ev.target && ev.target.id === "new-card-form") {
           ev.preventDefault();
-          const q = ev.target.querySelector("#new-q").value.trim();
-          const a = ev.target.querySelector("#new-a").value.trim();
-          if (!q || !a) return;
+          const qInput = ev.target.querySelector("#new-q");
+          const aInput = ev.target.querySelector("#new-a");
+          const q = qInput.value.trim();
+          const a = aInput.value.trim();
+
+          if (!q || !a) {
+            if (!q) {
+              qInput.setCustomValidity("Please enter a question");
+              qInput.reportValidity();
+            }
+            if (!a) {
+              aInput.setCustomValidity("Please enter an answer");
+              aInput.reportValidity();
+            }
+            return;
+          }
+
+          qInput.setCustomValidity("");
+          aInput.setCustomValidity("");
           createCard(activeDeckId, q, a);
           cleanup();
         }
@@ -584,23 +670,25 @@ document.addEventListener("DOMContentLoaded", () => {
       document.body.addEventListener("submit", handleSubmit);
     }
 
-    // Edit Card - FIXED: Use card ID
+    // Edit Card
     if (target.id === "edit-card-btn") {
       const deck = findDeck(activeDeckId);
       if (!deck || deck.cards.length === 0) return;
       const idx = deck._index || 0;
       const card = deck.cards[idx];
+
       const editForm = `
         <form id="edit-card-form" data-card-id="${card.id}">
           <label for="edit-q">Question</label>
-          <input id="edit-q" name="q" type="text" value="${escapeHtml(card.q)}" required autofocus />
+          <input id="edit-q" name="q" type="text" value="${escapeHtml(card.q)}" required minlength="1" maxlength="500" autofocus />
           <label for="edit-a" style="margin-top:8px;">Answer</label>
-          <input id="edit-a" name="a" type="text" value="${escapeHtml(card.a)}" required />
+          <input id="edit-a" name="a" type="text" value="${escapeHtml(card.a)}" required minlength="1" maxlength="500" />
           <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
             <button type="button" class="btn" id="cancel-edit-card">Cancel</button>
-            <button type="submit" class="btn">Save</button>
+            <button type="submit" class="btn btn-primary">Save</button>
           </div>
         </form>`;
+
       const editModal = new Modal({ title: "Edit Card", content: editForm });
       editModal.open();
 
@@ -613,10 +701,26 @@ document.addEventListener("DOMContentLoaded", () => {
       const handleSubmit = (ev) => {
         if (ev.target && ev.target.id === "edit-card-form") {
           ev.preventDefault();
-          const q = ev.target.querySelector("#edit-q").value.trim();
-          const a = ev.target.querySelector("#edit-a").value.trim();
+          const qInput = ev.target.querySelector("#edit-q");
+          const aInput = ev.target.querySelector("#edit-a");
+          const q = qInput.value.trim();
+          const a = aInput.value.trim();
           const cardId = ev.target.dataset.cardId;
-          if (!q || !a || !cardId) return;
+
+          if (!q || !a || !cardId) {
+            if (!q) {
+              qInput.setCustomValidity("Please enter a question");
+              qInput.reportValidity();
+            }
+            if (!a) {
+              aInput.setCustomValidity("Please enter an answer");
+              aInput.reportValidity();
+            }
+            return;
+          }
+
+          qInput.setCustomValidity("");
+          aInput.setCustomValidity("");
           updateCard(activeDeckId, cardId, q, a);
           cleanup();
         }
@@ -633,20 +737,22 @@ document.addEventListener("DOMContentLoaded", () => {
       document.body.addEventListener("submit", handleSubmit);
     }
 
-    // Delete Card - FIXED: Use card ID
+    // Delete Card
     if (target.id === "delete-card-btn") {
       const deck = findDeck(activeDeckId);
       if (!deck || deck.cards.length === 0) return;
       const idx = deck._index || 0;
       const card = deck.cards[idx];
+
       const confirmHtml = `
         <div>
           <p>Delete this card? This cannot be undone.</p>
           <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
             <button id="cancel-delete-card" class="btn">Cancel</button>
-            <button id="confirm-delete-card" class="btn" data-card-id="${card.id}" style="background:var(--danger,#dc2626);color:white;">Delete</button>
+            <button id="confirm-delete-card" class="btn btn-danger" data-card-id="${card.id}">Delete</button>
           </div>
         </div>`;
+
       const confirmModal = new Modal({
         title: "Delete Card",
         content: confirmHtml,
@@ -675,11 +781,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // FIXED: keyboard navigation - don't fire when modal is open or input is focused
+  // Keyboard navigation
   document.addEventListener("keydown", (e) => {
-    // If study mode is active, let study handlers take precedence
-    if (studySession && studySession.active) return;
-    // Don't trigger shortcuts if modal is open or user is typing
     const modalOpen = document.body.classList.contains("modal-open");
     const inputFocused =
       document.activeElement &&
@@ -704,13 +807,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (e.code === "Space") {
       e.preventDefault();
       const cardEl = document.getElementById("card");
-      if (cardEl) {
-        cardEl.classList.toggle("is-flipped");
-      }
+      if (cardEl) cardEl.classList.toggle("is-flipped");
     }
   });
 
-  // small helper to escape HTML for input value interpolation
   function escapeHtml(str) {
     return String(str)
       .replace(/&/g, "&amp;")
@@ -734,6 +834,11 @@ style.textContent = `
 .modal-body label{display:block;margin-bottom:4px;font-weight:500}
 .modal-body input[type="text"]{width:100%;padding:8px;border:1px solid var(--border,#e2e8f0);border-radius:6px;font-size:1rem;box-sizing:border-box}
 .modal-body input[type="text"]:focus{outline:2px solid var(--primary,#3b82f6);outline-offset:1px}
+.modal-body input:invalid{border-color:var(--danger,#dc2626)}
 body.modal-open{overflow:hidden}
+.btn-primary{background:var(--primary,#3b82f6);color:white}
+.btn-primary:hover{background:var(--primary-dark,#2563eb)}
+.btn-danger{background:var(--danger,#dc2626);color:white}
+.btn-danger:hover{background:var(--danger-dark,#b91c1c)}
 `;
 document.head.appendChild(style);
