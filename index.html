@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Flashcards App</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <h1>Flashcards</h1>
+      <nav class="header-actions" role="toolbar" aria-label="Header actions">
+        <button id="new-deck-btn" class="btn">New Deck</button>
+      </nav>
+    </header>
+
+    <main class="app-body">
+      <aside class="sidebar" aria-label="Decks">
+        <h2>Decks</h2>
+        <ul id="deck-list">
+          <li class="deck-item">Sample Deck</li>
+        </ul>
+      </aside>
+
+      <section class="main" id="main-content">
+        <section class="card-area" aria-live="polite">
+          <article id="card" class="card" aria-label="Flashcard">
+            <header class="card-front">Question</header>
+            <div class="card-back hidden">Answer</div>
+          </article>
+
+          <nav class="card-controls" aria-label="Card controls">
+            <button id="prev-btn">Prev</button>
+            <button id="flip-btn">Flip</button>
+            <button id="next-btn">Next</button>
+          </nav>
+        </section>
+
+        <nav class="deck-controls" aria-label="Deck controls">
+          <button id="add-card-btn">Add Card</button>
+          <button id="study-btn">Study</button>
+        </nav>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <small>© Flashcards App</small>
+    </footer>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
